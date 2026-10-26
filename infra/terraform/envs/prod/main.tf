@@ -1,0 +1,25 @@
+module "stack" {
+  source                = "../../modules/stack"
+  product_name          = var.product_name
+  environment           = "prod"
+  region                = var.region
+  vpc_cidr              = "10.15.0.0/16"
+  az_count              = 2
+  nat_per_az            = true
+  db_instance_class     = "db.t4g.medium"
+  db_multi_az           = true
+  api_cpu               = 1024
+  api_memory            = 2048
+  web_cpu               = 1024
+  web_memory            = 2048
+  desired_count         = 2
+  scale_to_zero         = false
+  log_retention_in_days = 90
+  github_repository     = var.github_repository
+  oidc_provider_arn     = var.oidc_provider_arn
+  image_api             = var.image_api
+  image_web             = var.image_web
+  route53_zone_id       = var.route53_zone_id
+  domain_name           = var.domain_name
+  certificate_arn       = var.certificate_arn
+}

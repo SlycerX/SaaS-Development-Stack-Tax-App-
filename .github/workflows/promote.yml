@@ -1,0 +1,298 @@
+name: promote
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: write
+  security-events: read
+
+jobs:
+  release-class:
+    runs-on: ubuntu-latest
+    outputs:
+      lane: ${{ steps.lane.outputs.lane }}
+      product: ${{ steps.lane.outputs.product }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - id: lane
+        run: |
+          lane=$(python scripts/ci_check.py release-class)
+          product=$(python -c 'import yaml; print(yaml.safe_load(open("product.yaml", encoding="utf-8"))["name"])')
+          echo "lane=${lane}" >> "$GITHUB_OUTPUT"
+          echo "product=${product}" >> "$GITHUB_OUTPUT"
+          python scripts/ci_check.py change-pack
+          python scripts/ci_check.py requirements
+          python scripts/ci_check.py waivers
+          python scripts/ci_check.py protected-paths
+          python scripts/ci_check.py workflows
+
+  secret-scanning:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail while secret scanning alerts are open
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o alerts.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/secret-scanning/alerts?state=open")
+          if [ "$code" != "200" ]; then
+            echo "GitHub secret scanning returned HTTP ${code}. Enable Secret Protection and push protection."
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          alerts = json.load(open("alerts.json", encoding="utf-8"))
+          if alerts:
+              raise SystemExit(f"{len(alerts)} open secret scanning alerts")
+          print("no open secret scanning alerts")
+          PY
+
+  snyk-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Snyk Code
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$SNYK_TOKEN"
+          npm install -g snyk
+          snyk code test --severity-threshold=high
+
+  snyk-open-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Snyk Open Source
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$SNYK_TOKEN"
+          npm install -g snyk
+          snyk test --file=apps/api/requirements.txt --severity-threshold=high
+          snyk test --file=apps/web/package.json --severity-threshold=high
+          snyk test --file=tests/playwright/package.json --severity-threshold=high
+
+  snyk-iac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Snyk IaC
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$SNYK_TOKEN"
+          npm install -g snyk
+          snyk iac test infra/terraform --severity-threshold=high
+
+  build:
+    needs: [release-class, secret-scanning, snyk-code, snyk-open-source, snyk-iac]
+    runs-on: ubuntu-latest
+    environment: build
+    outputs:
+      api_image: ${{ steps.push.outputs.api_image }}
+      web_image: ${{ steps.push.outputs.web_image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the shared ECR repositories
+        env:
+          ECR_API_URL: ${{ vars.ECR_API_URL }}
+          ECR_WEB_URL: ${{ vars.ECR_WEB_URL }}
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          test -n "$ECR_API_URL"
+          test -n "$ECR_WEB_URL"
+          test -n "$AWS_ROLE_ARN"
+          test -n "$AWS_REGION"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - id: push
+        env:
+          ECR_API_URL: ${{ vars.ECR_API_URL }}
+          ECR_WEB_URL: ${{ vars.ECR_WEB_URL }}
+          PRODUCT_NAME: ${{ needs.release-class.outputs.product }}
+        run: |
+          set -euo pipefail
+          api="${ECR_API_URL}:${GITHUB_SHA}"
+          web="${ECR_WEB_URL}:${GITHUB_SHA}"
+          docker build -t "$api" apps/api
+          docker build -t "$web" --build-arg "NEXT_PUBLIC_PRODUCT_NAME=${PRODUCT_NAME}" apps/web
+          docker push "$api"
+          docker push "$web"
+          echo "api_image=${api}" >> "$GITHUB_OUTPUT"
+          echo "web_image=${web}" >> "$GITHUB_OUTPUT"
+
+  snyk-container:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Snyk Container
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          API_IMAGE: ${{ needs.build.outputs.api_image }}
+          WEB_IMAGE: ${{ needs.build.outputs.web_image }}
+        run: |
+          set -euo pipefail
+          test -n "$SNYK_TOKEN"
+          npm install -g snyk
+          docker pull "$API_IMAGE"
+          docker pull "$WEB_IMAGE"
+          snyk container test "$API_IMAGE" --severity-threshold=high
+          snyk container test "$WEB_IMAGE" --severity-threshold=high
+
+  deploy-dev:
+    needs: [build, snyk-container]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: dev
+      image_api: ${{ needs.build.outputs.api_image }}
+      image_web: ${{ needs.build.outputs.web_image }}
+    secrets: inherit
+
+  deploy-test:
+    needs: [deploy-dev, build]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: test
+      image_api: ${{ needs.build.outputs.api_image }}
+      image_web: ${{ needs.build.outputs.web_image }}
+    secrets: inherit
+
+  playwright:
+    needs: [deploy-test, release-class]
+    uses: ./.github/workflows/playwright.yml
+    with:
+      release_class: ${{ needs.release-class.outputs.lane }}
+      web_url: ${{ needs.deploy-test.outputs.service_url }}
+      api_url: ${{ needs.deploy-test.outputs.service_url }}
+      product_name: ${{ needs.release-class.outputs.product }}
+    secrets: inherit
+
+  zap-baseline:
+    needs: [deploy-test, playwright]
+    uses: ./.github/workflows/dast.yml
+    with:
+      target: ${{ needs.deploy-test.outputs.service_url }}
+      mode: baseline
+    secrets: inherit
+
+  uat-approval:
+    needs: zap-baseline
+    runs-on: ubuntu-latest
+    environment: uat
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish the change pack for acceptance
+        run: |
+          {
+            echo "## Change packs"
+            echo
+            echo '```yaml'
+            find docs/changes -name change.yaml -not -path '*_template*' -print -exec cat {} \;
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-staging:
+    needs: [uat-approval, build]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: staging
+      image_api: ${{ needs.build.outputs.api_image }}
+      image_web: ${{ needs.build.outputs.web_image }}
+    secrets: inherit
+
+  deploy-preprod:
+    needs: [deploy-staging, build]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: preprod
+      image_api: ${{ needs.build.outputs.api_image }}
+      image_web: ${{ needs.build.outputs.web_image }}
+    secrets: inherit
+
+  k6:
+    needs: deploy-preprod
+    uses: ./.github/workflows/nft.yml
+    with:
+      base_url: ${{ needs.deploy-preprod.outputs.service_url }}
+    secrets: inherit
+
+  zap-authenticated:
+    needs: deploy-preprod
+    uses: ./.github/workflows/dast.yml
+    with:
+      target: ${{ needs.deploy-preprod.outputs.service_url }}
+      mode: authenticated
+    secrets: inherit
+
+  deploy-prod:
+    needs: [k6, zap-authenticated, build]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: prod
+      image_api: ${{ needs.build.outputs.api_image }}
+      image_web: ${{ needs.build.outputs.web_image }}
+    secrets: inherit
+
+  tag-major:
+    needs: [deploy-prod, release-class]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - name: Tag a major release
+        run: |
+          set -euo pipefail
+          lane=$(python scripts/ci_check.py release-class)
+          version=$(python -c "import yaml; print(yaml.safe_load(open('product.yaml', encoding='utf-8'))['version'])")
+          if [ "$lane" = "experiment" ]; then
+            echo "Experiment ${version} passed every environment. No major tag is created."
+            exit 0
+          fi
+          git tag "v${version}"
+          git push origin "v${version}"

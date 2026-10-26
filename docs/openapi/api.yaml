@@ -1,0 +1,158 @@
+openapi: 3.0.3
+info:
+  title: example
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          description: The API is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+  /items:
+    get:
+      operationId: listItems
+      responses:
+        "200":
+          description: Example items.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Item"
+    post:
+      operationId: createItem
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Created item.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+        "401":
+          description: Missing or invalid Cognito token.
+        "503":
+          description: Cognito is not configured.
+  /auth/register:
+    post:
+      operationId: registerAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, display_name]
+              properties:
+                email: { type: string }
+                password: { type: string }
+                display_name: { type: string }
+      responses:
+        "201":
+          description: Account created and signed in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+  /auth/login:
+    post:
+      operationId: login
+      responses:
+        "200":
+          description: Signed in.
+  /auth/logout:
+    post:
+      operationId: logout
+      responses:
+        "200":
+          description: Signed out.
+  /auth/me:
+    get:
+      operationId: currentAccount
+      responses:
+        "200":
+          description: The signed-in account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          description: No session.
+    patch:
+      operationId: updateAccount
+      responses:
+        "200":
+          description: Updated account.
+  /ledger/records:
+    get:
+      operationId: listLedgerRecords
+      responses:
+        "200":
+          description: Saved property, share, and bitcoin records.
+    post:
+      operationId: createLedgerRecord
+      responses:
+        "201":
+          description: Record saved and written to history.
+  /ledger/history:
+    get:
+      operationId: ledgerHistory
+      responses:
+        "200":
+          description: History lines written when records are saved.
+  /ledger/estimate:
+    get:
+      operationId: ledgerEstimate
+      responses:
+        "200":
+          description: Capital-gain estimate for the account income year.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    Item:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+    Account:
+      type: object
+      required: [id, email, display_name, australian_resident, income_year_ending, entity_type]
+      properties:
+        id: { type: integer }
+        email: { type: string }
+        display_name: { type: string }
+        australian_resident: { type: boolean }
+        income_year_ending: { type: integer }
+        entity_type: { type: string }

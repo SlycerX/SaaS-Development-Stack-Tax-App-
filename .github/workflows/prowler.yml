@@ -1,0 +1,49 @@
+name: prowler
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 16 * * 1"
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+jobs:
+  prowler:
+    runs-on: ubuntu-latest
+    environment: security
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the audit role
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          test -n "$AWS_ROLE_ARN"
+          test -n "$AWS_REGION"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Prowler
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p prowler-output
+          set +e
+          docker run --rm \
+            -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN -e AWS_DEFAULT_REGION \
+            -v "$PWD/prowler-output:/home/prowler/output" \
+            prowlercloud/prowler:stable aws --severity critical high -M json-asff -o /home/prowler/output
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            gh issue create \
+              --title "Prowler found critical or high findings" \
+              --body "The weekly Prowler run found critical or high AWS configuration findings. Open a fix pull request. The same CI gates apply."
+            exit "$code"
+          fi

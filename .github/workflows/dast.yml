@@ -1,0 +1,48 @@
+name: dast
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+      mode:
+        required: true
+        type: string
+
+jobs:
+  zap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: OWASP ZAP
+        env:
+          ZAP_TARGET: ${{ inputs.target }}
+          ZAP_MODE: ${{ inputs.mode }}
+          ZAP_AUTH_TOKEN: ${{ secrets.ZAP_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          case "$ZAP_MODE" in
+            baseline)
+              docker run --rm -v "$PWD:/zap/wrk" ghcr.io/zaproxy/zaproxy:stable \
+                zap-baseline.py -t "$ZAP_TARGET" -J zap-report.json
+              ;;
+            authenticated)
+              if [ -z "$ZAP_AUTH_TOKEN" ]; then
+                echo "ZAP_AUTH_TOKEN is required for the authenticated scan"
+                exit 1
+              fi
+              docker run --rm -v "$PWD:/zap/wrk" \
+                -e ZAP_TARGET -e ZAP_AUTH_TOKEN \
+                ghcr.io/zaproxy/zaproxy:stable \
+                zap.sh -cmd -autorun /zap/wrk/tests/dast/authenticated.yaml
+              ;;
+            *)
+              echo "mode must be baseline or authenticated"
+              exit 1
+              ;;
+          esac
+          python scripts/check_zap_report.py zap-report.json

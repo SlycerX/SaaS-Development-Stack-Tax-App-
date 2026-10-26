@@ -1,0 +1,253 @@
+name: ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: read
+
+jobs:
+  change-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/ci_check.py change-pack
+
+  requirements:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/ci_check.py requirements
+
+  waivers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/ci_check.py waivers
+
+  protected-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/ci_check.py protected-paths
+
+  workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/ci_check.py workflows
+
+  release-class:
+    runs-on: ubuntu-latest
+    outputs:
+      lane: ${{ steps.lane.outputs.lane }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - id: lane
+        run: echo "lane=$(python scripts/ci_check.py release-class)" >> "$GITHUB_OUTPUT"
+
+  secret-scanning:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail while secret scanning alerts are open
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o alerts.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/secret-scanning/alerts?state=open")
+          if [ "$code" != "200" ]; then
+            echo "GitHub secret scanning returned HTTP ${code}. Enable Secret Protection and push protection on this repository."
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          alerts = json.load(open("alerts.json", encoding="utf-8"))
+          if alerts:
+              raise SystemExit(f"{len(alerts)} open secret scanning alerts")
+          print("no open secret scanning alerts")
+          PY
+
+  snyk-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Snyk Code
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SNYK_TOKEN}" ]; then
+            echo "SNYK_TOKEN is required"
+            exit 1
+          fi
+          npm install -g snyk
+          snyk code test --severity-threshold=high
+
+  snyk-open-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Snyk Open Source
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SNYK_TOKEN}" ]; then
+            echo "SNYK_TOKEN is required"
+            exit 1
+          fi
+          npm install -g snyk
+          snyk test --file=apps/api/requirements.txt --severity-threshold=high
+          snyk test --file=apps/web/package.json --severity-threshold=high
+          snyk test --file=tests/playwright/package.json --severity-threshold=high
+
+  snyk-iac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Snyk IaC
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SNYK_TOKEN}" ]; then
+            echo "SNYK_TOKEN is required"
+            exit 1
+          fi
+          npm install -g snyk
+          snyk iac test infra/terraform --severity-threshold=high
+
+  snyk-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Rebuild and scan images
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SNYK_TOKEN}" ]; then
+            echo "SNYK_TOKEN is required"
+            exit 1
+          fi
+          docker build -t saas-api:ci apps/api
+          docker build -t saas-web:ci apps/web
+          npm install -g snyk
+          snyk container test saas-api:ci --file=apps/api/Dockerfile --severity-threshold=high
+          snyk container test saas-web:ci --file=apps/web/Dockerfile --severity-threshold=high
+
+  playwright:
+    needs: release-class
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: saas
+          POSTGRES_PASSWORD: saas
+          POSTGRES_DB: saas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U saas -d saas"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r apps/api/requirements.txt
+      - name: Build web
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_PRODUCT_NAME: example
+        run: |
+          npm install
+          npm run build
+      - name: Install Playwright
+        working-directory: tests/playwright
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+      - name: Start API and web
+        env:
+          DATABASE_URL: postgresql://saas:saas@localhost:5432/saas
+          PRODUCT_NAME: example
+        run: |
+          uvicorn app.main:app --app-dir apps/api --host 127.0.0.1 --port 8000 &
+          npm run start --prefix apps/web -- --hostname 127.0.0.1 --port 3000 &
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8000/health && curl -fsS http://127.0.0.1:3000 >/dev/null && exit 0
+            sleep 2
+          done
+          echo "API or web did not start"
+          exit 1
+      - name: Playwright lane
+        working-directory: tests/playwright
+        env:
+          API_URL: http://127.0.0.1:8000
+          WEB_URL: http://127.0.0.1:3000
+          PRODUCT_NAME: example
+          RELEASE_CLASS: ${{ needs.release-class.outputs.lane }}
+        run: |
+          set -euo pipefail
+          case "$RELEASE_CLASS" in
+            major)
+              npx playwright test
+              ;;
+            experiment)
+              npx playwright test --grep "@lite|@feature"
+              ;;
+            *)
+              echo "release_class must be experiment or major"
+              exit 1
+              ;;
+          esac

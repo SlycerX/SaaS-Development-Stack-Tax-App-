@@ -1,0 +1,8 @@
+---
+description: Intake agent turns a GitHub issue into a change pack
+alwaysApply: false
+---
+
+Use this rule when the task is labeled agent:intake.
+
+Write `docs/changes/CHG-YYYY-NNN/change.yaml` from the GitHub issue. Set `release_class` to `experiment` or `major`. Include every required step. Do not edit application code, workflows, or Terraform.

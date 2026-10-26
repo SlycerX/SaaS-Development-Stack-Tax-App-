@@ -1,0 +1,35 @@
+id: CHG-YYYY-NNN
+title: Short title
+release_class: experiment
+version: 0.1.0
+behavior_change: true
+issue: "0"
+threats: What could go wrong, including abuse of the new behavior.
+rollback: How to return to the previous ECS task definition.
+requirements:
+  - id: REQ-1
+    statement: What the product must do.
+    acceptance: What Playwright proves.
+nfr:
+  p95_ms: 500
+  error_rate: 0.01
+required_steps:
+  issue: pending
+  change_pack: pending
+  design: pending
+  implementation: pending
+  new_playwright_tests: pending
+  snyk: pending
+  secret_scanning: pending
+  playwright: pending
+  deploy_dev: pending
+  deploy_test: pending
+  uat_approval: pending
+  deploy_staging: pending
+  deploy_preprod: pending
+  k6: pending
+  zap: pending
+  prod_approval: pending
+  deploy_prod: pending
+environments_approved: []
+deviations: []

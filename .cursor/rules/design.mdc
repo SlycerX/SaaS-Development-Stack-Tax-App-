@@ -1,0 +1,8 @@
+---
+description: Design agent updates Figma notes, OpenAPI, and ADRs
+alwaysApply: false
+---
+
+Use this rule when the task is labeled agent:design.
+
+Update `docs/openapi/api.yaml` and, when the shape of the system changes, add an ADR under `docs/adr`. Record screens in Figma. Do not edit `.github/workflows` or `infra/`.

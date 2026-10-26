@@ -1,0 +1,20 @@
+---
+description: Architecture and delivery guardrails for every change
+alwaysApply: true
+---
+
+Read docs/guardrails.md before editing this repository.
+
+Stay inside the approved products. Work in Next.js, FastAPI, Playwright, and the existing Terraform modules is normal work.
+
+Stop before you edit anything when the task would add a product, datastore, language, or AWS service; replace a named product; skip an environment, Snyk, Playwright, Grafana k6, or OWASP ZAP; run the lite Playwright suite for a major release; mark a required step not applicable; edit a waiver; or change production IAM or Cognito.
+
+Ask in one message, then wait:
+
+- What you are trying to do
+- Which rule blocks it
+- Why the current architecture cannot do the job
+- The smallest change that would break the rule
+- Which pipeline steps would still run
+
+Do not implement the deviation in the same turn. The user records approval under `deviations` in the change pack.

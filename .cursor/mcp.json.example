@@ -1,0 +1,48 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "set-this-locally"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "snyk": {
+      "command": "snyk",
+      "args": ["mcp"],
+      "env": {
+        "SNYK_TOKEN": "set-this-locally"
+      }
+    },
+    "figma": {
+      "url": "https://mcp.figma.com/mcp"
+    },
+    "terraform": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "hashicorp/terraform-mcp-server:latest"]
+    },
+    "sentry": {
+      "url": "https://mcp.sentry.dev/mcp"
+    },
+    "aws": {
+      "command": "uvx",
+      "args": ["awslabs.aws-api-mcp-server@latest"],
+      "env": {
+        "AWS_REGION": "ap-southeast-2",
+        "READ_OPERATIONS_ONLY": "true"
+      }
+    },
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://saas:saas@localhost:5432/saas"
+      ]
+    }
+  }
+}

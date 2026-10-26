@@ -1,0 +1,52 @@
+name: playwright
+
+on:
+  workflow_call:
+    inputs:
+      release_class:
+        required: true
+        type: string
+      web_url:
+        required: true
+        type: string
+      api_url:
+        required: true
+        type: string
+      product_name:
+        required: true
+        type: string
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Playwright
+        working-directory: tests/playwright
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+      - name: Playwright lane
+        working-directory: tests/playwright
+        env:
+          WEB_URL: ${{ inputs.web_url }}
+          API_URL: ${{ inputs.api_url }}
+          PRODUCT_NAME: ${{ inputs.product_name }}
+          RELEASE_CLASS: ${{ inputs.release_class }}
+        run: |
+          set -euo pipefail
+          case "$RELEASE_CLASS" in
+            major)
+              npx playwright test
+              ;;
+            experiment)
+              npx playwright test --grep "@lite|@feature"
+              ;;
+            *)
+              echo "release_class must be experiment or major"
+              exit 1
+              ;;
+          esac

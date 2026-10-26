@@ -1,0 +1,12 @@
+{
+  "name": "acceptance",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:lite": "playwright test --grep \"@lite|@feature\"",
+    "test:full": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

@@ -1,0 +1,50 @@
+id: CHG-2026-002
+title: Account sign-in for the tax workspace
+release_class: experiment
+version: 0.1.0
+behavior_change: true
+issue: "2"
+threats: >
+  Accounts store a password hash and a session token hash. A tax file number
+  is not collected. The session cookie is httpOnly. Login failures use one
+  message so they do not reveal which emails exist, except registration,
+  which reports a duplicate email.
+rollback: >
+  Redeploy the previous ECS task definition. The accounts and sessions tables
+  can stay. They are not read by the health check.
+requirements:
+  - id: REQ-4
+    statement: A person can create an account and reach the dashboard.
+    acceptance: Playwright registers and sees the dashboard.
+  - id: REQ-5
+    statement: A person can save account details and see them after signing in again.
+    acceptance: Playwright updates the name, signs out, signs in, and sees the new name.
+nfr:
+  p95_ms: 500
+  error_rate: 0.01
+required_steps:
+  issue: pending
+  change_pack: passed
+  design: passed
+  implementation: passed
+  new_playwright_tests: passed
+  snyk: pending
+  secret_scanning: pending
+  playwright: pending
+  deploy_dev: pending
+  deploy_test: pending
+  uat_approval: pending
+  deploy_staging: pending
+  deploy_preprod: pending
+  k6: pending
+  zap: pending
+  prod_approval: pending
+  deploy_prod: pending
+environments_approved: []
+deviations:
+  - id: DEV-002
+    what: Route /auth and /auth/* on the existing load balancer to the API service.
+    rule: Changes under infra/ need an approved deviation.
+    why: Sign-in uses the current API and load balancer. It does not add a service.
+    pipeline_steps_still_run: All seventeen gates stay in the workflows.
+    approved_by: operator

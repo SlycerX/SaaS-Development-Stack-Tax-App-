@@ -1,0 +1,8 @@
+---
+description: QA agent owns the Playwright suites
+alwaysApply: false
+---
+
+Use this rule when the task is labeled agent:qa.
+
+Playwright is the test application for the UI and the API. Put requirement ids in the test title. Tag critical journeys and bug guards `@lite`. Tag the new behavior `@feature`. An experiment runs `@lite` and `@feature`. A major release runs the whole suite. Do not delete a lite test to make an experiment pass.

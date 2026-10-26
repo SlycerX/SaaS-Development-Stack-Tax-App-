@@ -1,0 +1,108 @@
+name: deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      image_api:
+        required: true
+        type: string
+      image_web:
+        required: true
+        type: string
+    outputs:
+      service_url:
+        value: ${{ jobs.deploy.outputs.service_url }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      service_url: ${{ steps.url.outputs.service_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: hashicorp/setup-terraform@v3
+      - name: Require the AWS role for this environment
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+          ROUTE53_ZONE_ID: ${{ vars.ROUTE53_ZONE_ID }}
+          OIDC_PROVIDER_ARN: ${{ vars.OIDC_PROVIDER_ARN }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          CERTIFICATE_ARN: ${{ vars.CERTIFICATE_ARN }}
+        run: |
+          set -euo pipefail
+          pip install -r scripts/requirements.txt
+          test -n "$AWS_ROLE_ARN"
+          test -n "$DOMAIN_NAME"
+          test -n "$ROUTE53_ZONE_ID"
+          test -n "$OIDC_PROVIDER_ARN"
+          test -n "$TF_STATE_BUCKET"
+          test -n "$TF_LOCK_TABLE"
+          test -n "$AWS_REGION"
+          if [ "${{ inputs.environment }}" = "prod" ]; then
+            test -n "$CERTIFICATE_ARN"
+            python scripts/ci_check.py prod-gate
+          fi
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Record the previous task definition
+        run: |
+          set -euo pipefail
+          product=$(python -c "import yaml; print(yaml.safe_load(open('product.yaml', encoding='utf-8'))['name'])")
+          cluster="${product}-${{ inputs.environment }}"
+          previous=$(aws ecs describe-services --cluster "$cluster" --services "${cluster}-api" --query "services[0].taskDefinition" --output text || true)
+          if [ -z "$previous" ] || [ "$previous" = "None" ]; then
+            echo "No previous API task definition. This is the first deploy of ${{ inputs.environment }}." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Previous API task definition for rollback: ${previous}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Terraform apply
+        working-directory: infra/terraform/envs/${{ inputs.environment }}
+        env:
+          TF_IN_AUTOMATION: "true"
+        run: |
+          set -euo pipefail
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_LOCK_TABLE }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="key=env/${{ inputs.environment }}/terraform.tfstate" \
+            -backend-config="encrypt=true"
+          cert_args=()
+          if [ -n "${{ vars.CERTIFICATE_ARN }}" ]; then
+            cert_args+=(-var "certificate_arn=${{ vars.CERTIFICATE_ARN }}")
+          fi
+          terraform apply -input=false -auto-approve \
+            -var "image_api=${{ inputs.image_api }}" \
+            -var "image_web=${{ inputs.image_web }}" \
+            -var "domain_name=${{ vars.DOMAIN_NAME }}" \
+            -var "route53_zone_id=${{ vars.ROUTE53_ZONE_ID }}" \
+            -var "oidc_provider_arn=${{ vars.OIDC_PROVIDER_ARN }}" \
+            -var "region=${{ vars.AWS_REGION }}" \
+            -var "github_repository=${{ github.repository }}" \
+            "${cert_args[@]}"
+      - name: Publish the service URL
+        id: url
+        working-directory: infra/terraform/envs/${{ inputs.environment }}
+        run: echo "service_url=$(terraform output -raw service_url)" >> "$GITHUB_OUTPUT"
+      - name: Wait until the new tasks are healthy
+        run: |
+          set -euo pipefail
+          product=$(python -c "import yaml; print(yaml.safe_load(open('product.yaml', encoding='utf-8'))['name'])")
+          cluster="${product}-${{ inputs.environment }}"
+          aws ecs wait services-stable --cluster "$cluster" --services "${cluster}-api" "${cluster}-web"

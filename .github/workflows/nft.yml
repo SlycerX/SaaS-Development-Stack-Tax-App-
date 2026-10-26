@@ -1,0 +1,27 @@
+name: nft
+
+on:
+  workflow_call:
+    inputs:
+      base_url:
+        required: true
+        type: string
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - name: Grafana k6
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -euo pipefail
+          eval "$(python scripts/ci_check.py nft-env)"
+          docker run --rm -v "$PWD:/scripts" \
+            -e BASE_URL -e P95_MS -e ERROR_RATE \
+            grafana/k6 run /scripts/tests/nft/health.js

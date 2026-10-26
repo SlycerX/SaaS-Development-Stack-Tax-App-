@@ -1,0 +1,49 @@
+id: CHG-2026-003
+title: Local connection check and investment ledger
+release_class: experiment
+version: 0.1.0
+behavior_change: true
+issue: "3"
+threats: >
+  Ledger rows are visible only to the signed-in account. Amounts are the
+  figures the person enters. A tax file number is not collected. The estimate
+  is labelled as a calculation from those records.
+rollback: >
+  Redeploy the previous ECS task definition. Ledger tables can stay. Older
+  builds do not read them.
+requirements:
+  - id: REQ-6
+    statement: The web app must accept a connection, and a refused connection names the checks.
+    acceptance: Playwright requests the web URL and, if nothing is listening, fails with the Docker and compose checks.
+  - id: REQ-7
+    statement: A signed-in person can record a share disposal and see the history and the discounted gain.
+    acceptance: Playwright saves a share held for more than 12 months and sees the history line and the halved taxable gain.
+nfr:
+  p95_ms: 500
+  error_rate: 0.01
+required_steps:
+  issue: pending
+  change_pack: passed
+  design: passed
+  implementation: passed
+  new_playwright_tests: passed
+  snyk: pending
+  secret_scanning: pending
+  playwright: pending
+  deploy_dev: pending
+  deploy_test: pending
+  uat_approval: pending
+  deploy_staging: pending
+  deploy_preprod: pending
+  k6: pending
+  zap: pending
+  prod_approval: pending
+  deploy_prod: pending
+environments_approved: []
+deviations:
+  - id: DEV-003
+    what: Route /ledger and /ledger/* on the existing load balancer to the API service.
+    rule: Changes under infra/ need an approved deviation.
+    why: The records stay on the current API and Postgres. The screen stays on the web app at /records.
+    pipeline_steps_still_run: All seventeen gates stay in the workflows.
+    approved_by: operator

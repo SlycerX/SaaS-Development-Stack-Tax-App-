@@ -1,0 +1,25 @@
+name: security-remediate
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 17 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Open a Snyk fix pull request when a Cursor key is present
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python -m pip install cursor-sdk
+          python scripts/remediate.py

@@ -1,0 +1,8 @@
+---
+description: Implementation agent writes the application and its Playwright tests
+alwaysApply: false
+---
+
+Use this rule when the task is labeled agent:implement.
+
+Edit `apps/` and add the full `@feature` Playwright cases for the new behavior. Do not edit `docs/security/waivers`, production IAM, or the OIDC trust policy. Follow the release class in the change pack.

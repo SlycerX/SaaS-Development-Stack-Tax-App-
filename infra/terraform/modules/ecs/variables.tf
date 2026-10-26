@@ -1,0 +1,31 @@
+variable "name" { type = string }
+variable "environment" { type = string }
+variable "region" { type = string }
+variable "vpc_id" { type = string }
+variable "public_subnet_ids" { type = list(string) }
+variable "private_subnet_ids" { type = list(string) }
+variable "alb_security_group_id" { type = string }
+variable "service_security_group_id" { type = string }
+variable "image_api" { type = string }
+variable "image_web" { type = string }
+variable "api_cpu" { type = number }
+variable "api_memory" { type = number }
+variable "web_cpu" { type = number }
+variable "web_memory" { type = number }
+variable "desired_count" { type = number }
+variable "scale_to_zero" { type = bool }
+variable "certificate_arn" {
+  type    = string
+  default = null
+}
+variable "domain_name" { type = string }
+variable "route53_zone_id" { type = string }
+variable "db_host" { type = string }
+variable "db_port" { type = number }
+variable "db_name" { type = string }
+variable "db_secret_arn" { type = string }
+variable "cognito_pool_id" { type = string }
+variable "cognito_client_id" { type = string }
+variable "api_log_group" { type = string }
+variable "web_log_group" { type = string }
+variable "product_name" { type = string }

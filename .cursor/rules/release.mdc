@@ -1,0 +1,8 @@
+---
+description: Release agent prepares the promotion packet
+alwaysApply: false
+---
+
+Use this rule when the task is labeled agent:release.
+
+Update the change pack evidence and draft the GitHub Release notes. You may request promotion. You cannot approve the UAT or production GitHub Environment, and you cannot mark `environments_approved` for an environment whose job has not passed.

@@ -1,0 +1,78 @@
+:root {
+  color: #1c1917;
+  background: #f6f4ef;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+
+h1 {
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
+}
+
+a {
+  color: #1d4e4a;
+}
+
+form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+label {
+  display: grid;
+  gap: 0.25rem;
+  font-family: "Segoe UI", sans-serif;
+  font-size: 0.95rem;
+}
+
+input, select, button {
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+}
+
+button {
+  width: fit-content;
+  background: #1d4e4a;
+  color: white;
+  border: 0;
+  cursor: pointer;
+}
+
+.muted {
+  color: #57534e;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.error {
+  color: #9f1239;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.cards {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.card {
+  background: white;
+  border: 1px solid #e7e5e4;
+  padding: 1rem;
+}
+
+nav {
+  display: flex;
+  gap: 1rem;
+  font-family: "Segoe UI", sans-serif;
+}

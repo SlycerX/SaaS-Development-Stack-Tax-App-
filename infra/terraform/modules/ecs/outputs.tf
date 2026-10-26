@@ -1,0 +1,9 @@
+output "cluster_name" { value = aws_ecs_cluster.main.name }
+output "cluster_arn" { value = aws_ecs_cluster.main.arn }
+output "api_service_name" { value = aws_ecs_service.api.name }
+output "web_service_name" { value = aws_ecs_service.web.name }
+output "execution_role_arn" { value = aws_iam_role.execution.arn }
+output "task_role_arn" { value = aws_iam_role.task.arn }
+output "service_url" { value = local.service_url }
+output "api_task_definition_family" { value = aws_ecs_task_definition.api.family }
+output "web_task_definition_family" { value = aws_ecs_task_definition.web.family }

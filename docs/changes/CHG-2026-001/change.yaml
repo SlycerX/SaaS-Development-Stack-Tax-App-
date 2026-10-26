@@ -1,0 +1,52 @@
+id: CHG-2026-001
+title: Initial delivery stack
+release_class: experiment
+version: 0.1.0
+behavior_change: true
+issue: "1"
+threats: >
+  The skeleton exposes a public health check and a public example item list.
+  Item creation requires a Cognito token. Unauthenticated callers receive 401,
+  and missing Cognito configuration returns 503 rather than accepting a token.
+rollback: >
+  Redeploy the previous ECS task definition recorded in the deploy job summary.
+  The database change is additive and can stay in place.
+requirements:
+  - id: REQ-1
+    statement: The home page shows the product name.
+    acceptance: Playwright opens the web app and reads the level-one heading.
+  - id: REQ-2
+    statement: The API reports that it is up.
+    acceptance: Playwright calls GET /health and receives status ok.
+  - id: REQ-3
+    statement: The API returns the example item.
+    acceptance: Playwright calls GET /items and finds an item named example.
+nfr:
+  p95_ms: 500
+  error_rate: 0.01
+required_steps:
+  issue: pending
+  change_pack: passed
+  design: passed
+  implementation: passed
+  new_playwright_tests: passed
+  snyk: pending
+  secret_scanning: pending
+  playwright: pending
+  deploy_dev: pending
+  deploy_test: pending
+  uat_approval: pending
+  deploy_staging: pending
+  deploy_preprod: pending
+  k6: pending
+  zap: pending
+  prod_approval: pending
+  deploy_prod: pending
+environments_approved: []
+deviations:
+  - id: DEV-001
+    what: Initial Terraform modules, GitHub Actions workflows, Cognito auth interface, and dependency manifests.
+    rule: Protected paths require an approved deviation.
+    why: This change creates the approved architecture. Later edits inside those files still need their own approval.
+    pipeline_steps_still_run: All seventeen gates stay in the workflows. Playwright breadth is the only lane difference.
+    approved_by: operator

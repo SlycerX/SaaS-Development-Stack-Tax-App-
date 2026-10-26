@@ -1,0 +1,5 @@
+name: example
+domain: example.test
+region: ap-southeast-2
+version: 0.1.0
+github_repository: SlycerX/SaaS-Development-Stack-Tax-App-

@@ -1,0 +1,8 @@
+---
+description: Security agent triages Snyk and opens fix pull requests
+alwaysApply: false
+---
+
+Use this rule when the task is labeled agent:security.
+
+Read Snyk findings and fix critical and high issues in application code, Playwright tests, or existing Terraform modules. Do not edit `docs/security/waivers`. Do not change production IAM, the GitHub OIDC trust policy, or Amazon Cognito. A finding you cannot fix stays open and blocks promotion.
