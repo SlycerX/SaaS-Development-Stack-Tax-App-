@@ -31,6 +31,7 @@ Create `build`, `security`, `dev`, `test`, `uat`, `staging`, `preprod`, and `pro
 ## Repository secrets
 
 - `SNYK_TOKEN`
+- `SECRET_SCANNING_PAT` — fine-grained PAT on this repository with **Secret scanning alerts** read access. The built-in `GITHUB_TOKEN` cannot call that API.
 - `CURSOR_API_KEY` for the remediation workflow
 - `ZAP_AUTH_TOKEN` on the pre-prod authenticated scan
 
