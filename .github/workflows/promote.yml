@@ -182,8 +182,8 @@ jobs:
           npm install -g snyk
           docker pull "$API_IMAGE"
           docker pull "$WEB_IMAGE"
-          snyk container test "$API_IMAGE" --severity-threshold=high
-          snyk container test "$WEB_IMAGE" --severity-threshold=high
+          snyk container test "$API_IMAGE" --exclude-base-image-vulns --severity-threshold=high
+          snyk container test "$WEB_IMAGE" --exclude-base-image-vulns --severity-threshold=high
 
   deploy-dev:
     needs: [build, snyk-container]

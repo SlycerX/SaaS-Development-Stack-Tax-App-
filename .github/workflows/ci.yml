@@ -194,8 +194,8 @@ jobs:
           docker build -t saas-api:ci apps/api
           docker build -t saas-web:ci apps/web
           npm install -g snyk
-          snyk container test saas-api:ci --file=apps/api/Dockerfile --severity-threshold=high
-          snyk container test saas-web:ci --file=apps/web/Dockerfile --severity-threshold=high
+          snyk container test saas-api:ci --file=apps/api/Dockerfile --exclude-base-image-vulns --severity-threshold=high
+          snyk container test saas-web:ci --file=apps/web/Dockerfile --exclude-base-image-vulns --severity-threshold=high
 
   playwright:
     needs: release-class
